@@ -78,11 +78,16 @@ const config: Config = {
           "0%": { opacity: "0", transform: "translateY(-12px) scale(0.99)" },
           "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
         },
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         "pulse-slow": "pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "float-soft": "float-soft 6s ease-in-out infinite",
         "slide-in-top": "slide-in-top 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+        "fade-in": "fade-in 0.2s ease-out",
       },
     },
   },

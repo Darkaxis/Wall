@@ -5,17 +5,16 @@ import {
   Camera,
   Clock,
   Disc3,
+  Loader2,
   MapPin,
   Maximize2,
-  Radio,
   RefreshCw,
   Search,
-  User,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { ModalDialog } from "@/components/ui/dialog";
 import { PHOTO_FILTERS } from "@/lib/softclub-art";
@@ -23,14 +22,12 @@ import type { WallPost } from "@/lib/supabase";
 
 interface LiveFeedProps {
   posts: WallPost[];
-  currentAuthorName: string;
-  isLiveAutoRefresh: boolean;
-  onToggleAutoRefresh: () => void;
   onManualRefresh: () => Promise<void>;
+  onDeletePost: (postId: string) => Promise<void>;
   newlyArrivedIds: Set<string>;
 }
 
-type FeedFilter = "all" | "photos" | "mine";
+type FeedFilter = "all" | "photos";
 
 function formatRelativeTime(isoString: string, nowTick: number): string {
   const date = new Date(isoString);
@@ -59,19 +56,15 @@ function formatClockTime(isoString: string): string {
 
 export function LiveFeed({
   posts,
-  currentAuthorName,
-  isLiveAutoRefresh,
-  onToggleAutoRefresh,
   onManualRefresh,
+  onDeletePost,
   newlyArrivedIds,
 }: LiveFeedProps) {
   const [filter, setFilter] = React.useState<FeedFilter>("all");
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedAuthor, setSelectedAuthor] = React.useState<WallPost | null>(
-    null
-  );
   const [lightboxPost, setLightboxPost] = React.useState<WallPost | null>(null);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [nowTick, setNowTick] = React.useState<number>(() => Date.now());
 
   // Tick every 5 seconds so relative timestamps stay current without reloading
@@ -91,6 +84,15 @@ export function LiveFeed({
     }
   };
 
+  const handleDelete = async (postId: string) => {
+    setDeletingId(postId);
+    try {
+      await onDeletePost(postId);
+    } finally {
+      setDeletingId((current) => (current === postId ? null : current));
+    }
+  };
+
   // Newest messages always appear at the top
   const sortedPosts = React.useMemo(() => {
     return [...posts].sort(
@@ -102,12 +104,6 @@ export function LiveFeed({
   const filteredPosts = React.useMemo(() => {
     return sortedPosts.filter((post) => {
       if (filter === "photos" && !post.photo_url) return false;
-      if (
-        filter === "mine" &&
-        post.author_name.toLowerCase() !== currentAuthorName.toLowerCase()
-      ) {
-        return false;
-      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchAuthor = post.author_name.toLowerCase().includes(q);
@@ -117,24 +113,16 @@ export function LiveFeed({
       }
       return true;
     });
-  }, [sortedPosts, filter, currentAuthorName, searchQuery]);
-
-  const authorPosts = React.useMemo(() => {
-    if (!selectedAuthor) return [];
-    return sortedPosts.filter(
-      (p) =>
-        p.author_name.toLowerCase() === selectedAuthor.author_name.toLowerCase()
-    );
-  }, [sortedPosts, selectedAuthor]);
+  }, [sortedPosts, filter, searchQuery]);
 
   return (
     <div className="space-y-4">
-      {/* Feed Filter & Live Controls */}
+      {/* Feed Filter & Refresh Controls */}
       <Card className="border-white/90 bg-white/75 p-3.5">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1 rounded-full border border-white/80 bg-[#E4EFECE6] p-1">
+            <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-white/80 bg-[#E4EFECE6] p-1 sm:rounded-full">
               {(
                 [
                   { id: "all", label: `All (${sortedPosts.length})` },
@@ -142,16 +130,6 @@ export function LiveFeed({
                     id: "photos",
                     label: `Photos (${
                       sortedPosts.filter((p) => Boolean(p.photo_url)).length
-                    })`,
-                  },
-                  {
-                    id: "mine",
-                    label: `My posts (${
-                      sortedPosts.filter(
-                        (p) =>
-                          p.author_name.toLowerCase() ===
-                          currentAuthorName.toLowerCase()
-                      ).length
                     })`,
                   },
                 ] as { id: FeedFilter; label: string }[]
@@ -171,43 +149,20 @@ export function LiveFeed({
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onToggleAutoRefresh}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
-                  isLiveAutoRefresh
-                    ? "border-[#6B8E7B]/40 bg-[#6B8E7B]/15 text-[#274837]"
-                    : "border-border bg-white/60 text-muted-foreground"
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleManualSync}
+              className="h-8 w-8"
+              title="Refresh feed"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 text-[#528899] ${
+                  isRefreshing ? "animate-spin" : ""
                 }`}
-                title="Toggle automatic live updates"
-              >
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    isLiveAutoRefresh
-                      ? "bg-[#DF6D3B] animate-ping"
-                      : "bg-muted-foreground"
-                  }`}
-                />
-                <Radio className="h-3 w-3" />
-                {isLiveAutoRefresh ? "Live" : "Paused"}
-              </button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleManualSync}
-                className="h-8 w-8"
-                title="Refresh feed"
-              >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 text-[#528899] ${
-                    isRefreshing ? "animate-spin" : ""
-                  }`}
-                />
-              </Button>
-            </div>
+              />
+            </Button>
           </div>
 
           {/* Search Input */}
@@ -251,32 +206,20 @@ export function LiveFeed({
               >
                 <CardContent className="p-4 sm:p-5">
                   <div className="flex items-start gap-3.5">
-                    {/* Clickable Author Avatar */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAuthor(post)}
-                      className="group/avatar relative shrink-0 focus:outline-none"
-                      title={`View ${post.author_name}'s profile`}
-                    >
-                      <Avatar
-                        src={post.author_avatar_url}
-                        alt={post.author_name}
-                        fallbackText={post.author_name}
-                        className="h-11 w-11 border-2 border-white transition-transform group-hover/avatar:scale-105"
-                      />
-                    </button>
+                    <Avatar
+                      src={post.author_avatar_url}
+                      alt={post.author_name}
+                      fallbackText={post.author_name}
+                      className="h-11 w-11 shrink-0 border-2 border-white"
+                    />
 
                     <div className="min-w-0 flex-1 space-y-2">
                       {/* Author & Timestamp Header */}
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedAuthor(post)}
-                            className="text-left text-sm font-semibold tracking-tight text-[#1B2A2E] hover:text-[#528899] hover:underline"
-                          >
+                          <span className="text-sm font-semibold tracking-tight text-[#1B2A2E]">
                             {post.author_name}
-                          </button>
+                          </span>
                           {post.author_handle && (
                             <span className="text-xs text-[#528899]">
                               {post.author_handle}
@@ -301,6 +244,20 @@ export function LiveFeed({
                           <span className="hidden opacity-65 sm:inline">
                             · {formatClockTime(post.created_at)}
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(post.id)}
+                            disabled={deletingId === post.id}
+                            aria-label="Delete post"
+                            title="Delete post"
+                            className="ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-[#DF6D3B]/12 hover:text-[#DF6D3B] focus:opacity-100 disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100"
+                          >
+                            {deletingId === post.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
                         </div>
                       </div>
 
@@ -343,28 +300,15 @@ export function LiveFeed({
                         </div>
                       )}
 
-                      {/* Footer: Mood + Profile trigger */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                        {post.author_mood ? (
-                          <div className="inline-flex items-center gap-1.5 text-xs text-[#456B75]">
-                            <Disc3 className="h-3 w-3 text-[#DF6D3B]" />
-                            <span className="max-w-[280px] truncate">
-                              {post.author_mood}
-                            </span>
-                          </div>
-                        ) : (
-                          <span />
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => setSelectedAuthor(post)}
-                          className="inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/60 px-2.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-white hover:text-[#1B2A2E]"
-                        >
-                          <User className="h-2.5 w-2.5" />
-                          Profile
-                        </button>
-                      </div>
+                      {/* Footer: Listening Status */}
+                      {post.author_mood && (
+                        <div className="inline-flex min-w-0 items-center gap-1.5 pt-1 text-xs text-[#456B75]">
+                          <Disc3 className="h-3 w-3 shrink-0 text-[#DF6D3B]" />
+                          <span className="max-w-[200px] truncate sm:max-w-[280px]">
+                            {post.author_mood}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -373,77 +317,6 @@ export function LiveFeed({
           })}
         </div>
       )}
-
-      {/* Author Profile Info Modal */}
-      <ModalDialog
-        open={Boolean(selectedAuthor)}
-        onOpenChange={(open) => !open && setSelectedAuthor(null)}
-        title={selectedAuthor?.author_name || "Profile"}
-        subtitle="Member profile"
-      >
-        {selectedAuthor && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 rounded-2xl border border-white/90 bg-white/75 p-4">
-              <Avatar
-                src={selectedAuthor.author_avatar_url}
-                alt={selectedAuthor.author_name}
-                fallbackText={selectedAuthor.author_name}
-                className="h-16 w-16 border-2 border-white shadow-md"
-              />
-              <div className="space-y-1">
-                <div className="text-lg font-semibold text-[#1B2A2E]">
-                  {selectedAuthor.author_name}
-                </div>
-                {selectedAuthor.author_handle && (
-                  <div className="text-xs text-[#528899]">
-                    {selectedAuthor.author_handle}
-                  </div>
-                )}
-                {selectedAuthor.author_location && (
-                  <Badge variant="sage" className="normal-case tracking-normal">
-                    <MapPin className="h-3 w-3" />
-                    {selectedAuthor.author_location}
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2 rounded-2xl border border-white/80 bg-white/60 p-3.5">
-              <div className="text-xs font-medium text-muted-foreground">
-                About
-              </div>
-              <p className="text-xs leading-relaxed text-[#1B2A2E]">
-                {selectedAuthor.author_bio || "Member of the Wall."}
-              </p>
-              {selectedAuthor.author_mood && (
-                <div className="flex items-center gap-2 border-t border-[#528899]/15 pt-2 text-xs text-[#356372]">
-                  <Disc3 className="h-3.5 w-3.5 text-[#DF6D3B]" />
-                  <span>{selectedAuthor.author_mood}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">
-                Recent posts ({authorPosts.length})
-              </div>
-              <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
-                {authorPosts.map((ap) => (
-                  <div
-                    key={ap.id}
-                    className="rounded-xl border border-white/80 bg-white/75 p-2.5 text-xs"
-                  >
-                    <div className="mb-1 text-[11px] text-muted-foreground">
-                      {formatRelativeTime(ap.created_at, nowTick)}
-                    </div>
-                    <p className="text-[#1B2A2E]">{ap.body || ap.message}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </ModalDialog>
 
       {/* Photo Lightbox Modal */}
       <ModalDialog

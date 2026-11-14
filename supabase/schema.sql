@@ -49,6 +49,13 @@ create policy "Allow public update access on posts"
   to public
   using (true);
 
+drop policy if exists "Allow public delete access on posts" on public.posts;
+create policy "Allow public delete access on posts"
+  on public.posts
+  for delete
+  to public
+  using (true);
+
 -- 3. Enable Realtime on the `posts` table (Critical requirement!)
 alter publication supabase_realtime add table public.posts;
 

@@ -1,13 +1,4 @@
-import {
-  createClient,
-  type SupabaseClient,
-  type User,
-} from "@supabase/supabase-js";
-import {
-  SOFTCLUB_AVATAR_PRESETS,
-  SOFTCLUB_SAMPLE_PHOTOS,
-  type PhotoFilterId,
-} from "@/lib/softclub-art";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const MAX_POST_LENGTH = 280;
 
@@ -24,7 +15,6 @@ export interface WallPost {
   created_at: string;
   photo_url?: string | null;
   photo_caption?: string | null;
-  photo_filter?: PhotoFilterId | string | null;
   author_avatar_url?: string | null;
   author_handle?: string | null;
   author_bio?: string | null;
@@ -54,67 +44,19 @@ const STORAGE_KEYS = {
 };
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
-  author_name: "Sora Takahashi",
-  author_handle: "@sora",
-  author_avatar_url: SOFTCLUB_AVATAR_PRESETS[0].url,
-  author_bio:
-    "Collecting translucent electronics, ambient tapes, and quiet airport mornings.",
-  author_location: "Tokyo",
-  author_mood: "Air — La Femme d'Argent",
+  author_name: "Guest",
+  author_handle: "@guest",
+  author_avatar_url: "",
+  author_bio: "",
+  author_location: "",
+  author_mood: "",
 };
 
-export const INITIAL_SEED_POSTS: WallPost[] = [
-  {
-    id: "sc-1999-001",
-    author_name: "Sora Takahashi",
-    author_handle: "@sora",
-    author_avatar_url: SOFTCLUB_AVATAR_PRESETS[0].url,
-    author_bio:
-      "Collecting translucent electronics, ambient tapes, and quiet airport mornings.",
-    author_location: "Tokyo",
-    author_mood: "Air — La Femme d'Argent",
-    body: "Sunlight hitting the seafoam chairs while Zero 7 plays in the lounge. Everything feels weightless today.",
-    message:
-      "Sunlight hitting the seafoam chairs while Zero 7 plays in the lounge. Everything feels weightless today.",
-    created_at: new Date(Date.now() - 1000 * 60 * 6).toISOString(),
-    photo_url: SOFTCLUB_SAMPLE_PHOTOS.naritaLounge,
-    photo_caption: "Afternoon light in the glass concourse",
-    photo_filter: "none",
-  },
-  {
-    id: "sc-1999-002",
-    author_name: "Mina Lindqvist",
-    author_handle: "@mina",
-    author_avatar_url: SOFTCLUB_AVATAR_PRESETS[1].url,
-    author_bio:
-      "Editorial designer obsessed with Swiss grids and pale celadon ceramics.",
-    author_location: "Stockholm",
-    author_mood: "Everything But The Girl — Temperamental",
-    body: "Just dubbed a late-night downtempo mix onto a translucent cyan MiniDisc. What is everyone listening to right now?",
-    message:
-      "Just dubbed a late-night downtempo mix onto a translucent cyan MiniDisc. What is everyone listening to right now?",
-    created_at: new Date(Date.now() - 1000 * 60 * 24).toISOString(),
-    photo_url: SOFTCLUB_SAMPLE_PHOTOS.minidiscSession,
-    photo_caption: "Evening MiniDisc session",
-    photo_filter: "aero-mist",
-  },
-  {
-    id: "sc-1999-003",
-    author_name: "Julian Vance",
-    author_handle: "@julian",
-    author_avatar_url: SOFTCLUB_AVATAR_PRESETS[2].url,
-    author_bio: "Graphic designer & architecture fan.",
-    author_location: "London",
-    author_mood: "Boards of Canada — Roygbiv",
-    body: "Good design should feel like stepping into a cool conservatory after a warm rain. Soft edges, clear space, zero noise.",
-    message:
-      "Good design should feel like stepping into a cool conservatory after a warm rain. Soft edges, clear space, zero noise.",
-    created_at: new Date(Date.now() - 1000 * 60 * 52).toISOString(),
-    photo_url: null,
-    photo_caption: null,
-    photo_filter: "none",
-  },
-];
+const LEGACY_SEED_IDS = new Set([
+  "sc-1999-001",
+  "sc-1999-002",
+  "sc-1999-003",
+]);
 
 const envSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
 const envSupabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
@@ -220,25 +162,22 @@ export function saveLocalProfile(profile: UserProfile): void {
 }
 
 export function loadLocalPosts(): WallPost[] {
-  if (typeof window === "undefined") return INITIAL_SEED_POSTS;
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEYS.POSTS);
-    if (!raw) {
-      window.localStorage.setItem(
-        STORAGE_KEYS.POSTS,
-        JSON.stringify(INITIAL_SEED_POSTS)
-      );
-      return INITIAL_SEED_POSTS;
-    }
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as WallPost[];
-    return Array.isArray(parsed) && parsed.length > 0
-      ? parsed.sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
-      : INITIAL_SEED_POSTS;
+    if (!Array.isArray(parsed)) return [];
+    const filtered = parsed.filter((p) => !LEGACY_SEED_IDS.has(p.id));
+    if (filtered.length !== parsed.length) {
+      window.localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(filtered));
+    }
+    return filtered.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
   } catch {
-    return INITIAL_SEED_POSTS;
+    return [];
   }
 }
 
@@ -296,12 +235,10 @@ export function normalizePostRow(row: Record<string, unknown>): WallPost {
     created_at: String(row.created_at || new Date().toISOString()),
     photo_url: (row.photo_url as string) ?? cached.photo_url ?? null,
     photo_caption: (row.photo_caption as string) ?? cached.photo_caption ?? null,
-    photo_filter:
-      (row.photo_filter as string) ?? cached.photo_filter ?? "none",
     author_avatar_url:
       (row.author_avatar_url as string) ??
       cached.author_avatar_url ??
-      SOFTCLUB_AVATAR_PRESETS[0].url,
+      null,
     author_handle:
       (row.author_handle as string) ??
       cached.author_handle ??
@@ -438,124 +375,6 @@ export async function fetchWallPosts(): Promise<{
   }
 }
 
-export function profileFromSupabaseUser(user: User): UserProfile {
-  const meta = (user.user_metadata || {}) as Partial<UserProfile>;
-  const emailName = user.email ? user.email.split("@")[0] : "Guest";
-  const authorName = (meta.author_name || emailName || "Guest").trim();
-  const handleSlug = authorName.toLowerCase().replace(/[^a-z0-9]/g, "") || "guest";
-
-  return {
-    author_name: authorName,
-    author_handle: meta.author_handle || `@${handleSlug}`,
-    author_avatar_url: meta.author_avatar_url || SOFTCLUB_AVATAR_PRESETS[0].url,
-    author_bio: meta.author_bio || "",
-    author_location: meta.author_location || "",
-    author_mood: meta.author_mood || "",
-  };
-}
-
-export async function signInWithEmail(
-  email: string,
-  password: string
-): Promise<{ user: User | null; error?: string }> {
-  const client = getSupabaseClient();
-  if (!client) {
-    return { user: null, error: "Connection is not configured." };
-  }
-
-  const { data, error } = await client.auth.signInWithPassword({
-    email: email.trim(),
-    password,
-  });
-
-  if (error) {
-    return { user: null, error: error.message };
-  }
-
-  return { user: data.user };
-}
-
-export async function signUpWithEmail(
-  email: string,
-  password: string,
-  displayName: string
-): Promise<{
-  user: User | null;
-  needsEmailConfirmation: boolean;
-  error?: string;
-}> {
-  const client = getSupabaseClient();
-  if (!client) {
-    return {
-      user: null,
-      needsEmailConfirmation: false,
-      error: "Connection is not configured.",
-    };
-  }
-
-  const cleanName = displayName.trim() || email.split("@")[0] || "Guest";
-  const handleSlug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "") || "guest";
-
-  const { data, error } = await client.auth.signUp({
-    email: email.trim(),
-    password,
-    options: {
-      data: {
-        author_name: cleanName,
-        author_handle: `@${handleSlug}`,
-        author_avatar_url: SOFTCLUB_AVATAR_PRESETS[0].url,
-        author_bio: "",
-        author_location: "",
-        author_mood: "",
-      },
-    },
-  });
-
-  if (error) {
-    return {
-      user: null,
-      needsEmailConfirmation: false,
-      error: error.message,
-    };
-  }
-
-  const needsConfirmation = Boolean(data.user && !data.session);
-  return {
-    user: data.user,
-    needsEmailConfirmation: needsConfirmation,
-  };
-}
-
-export async function signOutUser(): Promise<void> {
-  const client = getSupabaseClient();
-  if (!client) return;
-  await client.auth.signOut();
-}
-
-export async function updateAuthUserProfile(
-  profile: UserProfile
-): Promise<void> {
-  const client = getSupabaseClient();
-  if (!client) return;
-  try {
-    const { data } = await client.auth.getUser();
-    if (data.user) {
-      await client.auth.updateUser({
-        data: {
-          author_name: profile.author_name,
-          author_handle: profile.author_handle,
-          author_avatar_url: profile.author_avatar_url,
-          author_bio: profile.author_bio,
-          author_location: profile.author_location,
-          author_mood: profile.author_mood,
-        },
-      });
-    }
-  } catch {
-    // Ignore metadata update failures
-  }
-}
-
 /**
  * Inserts a new post into the `posts` table (enforcing max 280 characters).
  * Supports both the full Soft Club schema and the minimal 4-column `requirements.md` schema (`body`).
@@ -566,7 +385,6 @@ export async function createWallPost(input: {
   message: string;
   photo_url?: string | null;
   photo_caption?: string | null;
-  photo_filter?: PhotoFilterId | string | null;
   profile: UserProfile;
 }): Promise<{ post: WallPost; source: "supabase" | "local"; error?: string }> {
   const cleanMessage = input.message.trim().slice(0, MAX_POST_LENGTH);
@@ -586,7 +404,6 @@ export async function createWallPost(input: {
     created_at: nowIso,
     photo_url: input.photo_url || null,
     photo_caption: input.photo_caption || null,
-    photo_filter: input.photo_filter || "none",
     author_avatar_url: input.profile.author_avatar_url,
     author_handle: input.profile.author_handle,
     author_bio: input.profile.author_bio,
@@ -606,7 +423,6 @@ export async function createWallPost(input: {
         created_at: newPost.created_at,
         photo_url: newPost.photo_url,
         photo_caption: newPost.photo_caption,
-        photo_filter: newPost.photo_filter,
         author_avatar_url: newPost.author_avatar_url,
         author_handle: newPost.author_handle,
         author_bio: newPost.author_bio,
@@ -693,24 +509,21 @@ export async function createWallPost(input: {
 }
 
 /**
- * Updates the author's profile picture and profile info across their account and posts.
+ * Updates the author's profile picture and profile info across their posts and local profile.
  */
 export async function syncAuthorProfileOnPosts(
   previousAuthorName: string,
-  updatedProfile: UserProfile,
-  userId?: string | null
-): Promise<void> {
+  updatedProfile: UserProfile
+): Promise<{ error?: string }> {
   saveLocalProfile(updatedProfile);
-  await updateAuthUserProfile(updatedProfile);
 
   const local = loadLocalPosts();
   const updatedLocal = local.map((p) => {
-    const matchByUser = userId && p.user_id === userId;
     const matchByName =
       p.author_name.toLowerCase() === previousAuthorName.toLowerCase() ||
       p.author_name.toLowerCase() === updatedProfile.author_name.toLowerCase();
 
-    if (matchByUser || matchByName) {
+    if (matchByName) {
       return {
         ...p,
         author_name: updatedProfile.author_name,
@@ -728,22 +541,59 @@ export async function syncAuthorProfileOnPosts(
   const client = getSupabaseClient();
   if (client) {
     try {
-      const query = client.from("posts").update({
-        author_name: updatedProfile.author_name,
-        author_handle: updatedProfile.author_handle,
-        author_avatar_url: updatedProfile.author_avatar_url,
-        author_bio: updatedProfile.author_bio,
-        author_location: updatedProfile.author_location,
-        author_mood: updatedProfile.author_mood,
-      });
-
-      if (userId) {
-        await query.eq("user_id", userId);
-      } else {
-        await query.eq("author_name", previousAuthorName);
-      }
+      await client
+        .from("posts")
+        .update({
+          author_name: updatedProfile.author_name,
+          author_handle: updatedProfile.author_handle,
+          author_avatar_url: updatedProfile.author_avatar_url,
+          author_bio: updatedProfile.author_bio,
+          author_location: updatedProfile.author_location,
+          author_mood: updatedProfile.author_mood,
+        })
+        .eq("author_name", previousAuthorName);
     } catch {
       // Ignore if optional columns are not present on remote table
     }
   }
+  return {};
+}
+
+/**
+ * Deletes a post by id from Supabase (when configured) and updates local cache.
+ */
+export async function deleteWallPost(
+  postId: string
+): Promise<{ deleted: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { error } = await client.from("posts").delete().eq("id", postId);
+      if (error) {
+        return { deleted: false, error: error.message };
+      }
+
+      const { data: remaining, error: checkErr } = await client
+        .from("posts")
+        .select("id")
+        .eq("id", postId)
+        .maybeSingle();
+
+      if (!checkErr && remaining) {
+        return {
+          deleted: false,
+          error: "Unable to delete this post from the server.",
+        };
+      }
+    } catch (err) {
+      return {
+        deleted: false,
+        error: err instanceof Error ? err.message : "Delete failed",
+      };
+    }
+  }
+
+  const current = loadLocalPosts();
+  saveLocalPosts(current.filter((p) => p.id !== postId));
+  return { deleted: true };
 }
