@@ -89,7 +89,7 @@ export function ProfileCard({
         {/* Activity Counters */}
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-xl border border-white/80 bg-white/55 px-3 py-2">
-            <div className="text-[11px] text-muted-foreground">My posts</div>
+            <div className="text-[11px] text-muted-foreground">Posts</div>
             <div className="text-base font-semibold text-[#1B2A2E]">
               {postCount}
             </div>

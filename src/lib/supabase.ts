@@ -55,19 +55,20 @@ export interface UserProfile {
   author_mood: string;
 }
 
-const STORAGE_KEYS = {
-  POSTS: "wall_softclub_posts_v1",
-  PROFILE: "wall_softclub_profile_v1",
-  EXTRA_META: "wall_softclub_post_meta_v1",
+export const STORAGE_KEYS = {
+  POSTS: "wall_softclub_posts_v2",
+  PROFILE: "wall_softclub_profile_v2",
+  EXTRA_META: "wall_softclub_post_meta_v2",
 };
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
-  author_name: "Guest",
-  author_handle: "@guest",
-  author_avatar_url: "",
-  author_bio: "",
-  author_location: "",
-  author_mood: "",
+  author_name: "Aubie Bryne Hallazgo",
+  author_handle: "@Axis",
+  author_avatar_url:
+    "https://ezlqicndraxuhampnmff.supabase.co/storage/v1/object/public/wall-media/avatars/1794640982333-804ogp.png",
+  author_bio: "Hello, I'm you average developer!",
+  author_location: "Bukidnon",
+  author_mood: "Addendark - Deathline",
 };
 
 const LEGACY_SEED_IDS = new Set([
@@ -120,7 +121,8 @@ export function sanitizeMediaUrl(rawUrl: unknown): string | null {
 
 export function sanitizeProfile(input: Partial<UserProfile>): UserProfile {
   const safeName =
-    sanitizeText(input.author_name, FIELD_LIMITS.AUTHOR_NAME) || "Guest";
+    sanitizeText(input.author_name, FIELD_LIMITS.AUTHOR_NAME) ||
+    DEFAULT_USER_PROFILE.author_name;
   const safeHandle = sanitizeText(input.author_handle, FIELD_LIMITS.AUTHOR_HANDLE);
   const safeAvatar = sanitizeMediaUrl(input.author_avatar_url) || "";
 
@@ -260,6 +262,9 @@ export function getSupabaseClient(): SupabaseClient | null {
 export function loadLocalProfile(): UserProfile {
   if (typeof window === "undefined") return DEFAULT_USER_PROFILE;
   try {
+    window.localStorage.removeItem("wall_softclub_profile_v1");
+    window.localStorage.removeItem("wall_softclub_posts_v1");
+    window.localStorage.removeItem("wall_softclub_post_meta_v1");
     const raw = window.localStorage.getItem(STORAGE_KEYS.PROFILE);
     if (!raw) return DEFAULT_USER_PROFILE;
     const parsed = JSON.parse(raw) as Partial<UserProfile>;
@@ -379,9 +384,9 @@ export function normalizePostRow(row: Record<string, unknown>): WallPost {
         row.author_name ||
           cached.author_name ||
           profileFallback.author_name ||
-          "Guest",
+          DEFAULT_USER_PROFILE.author_name,
         FIELD_LIMITS.AUTHOR_NAME
-      ) || "Guest",
+      ) || DEFAULT_USER_PROFILE.author_name,
     created_at: createdAt,
     photo_url: sanitizeMediaUrl(row.photo_url ?? cached.photo_url),
     photo_caption:
@@ -654,7 +659,7 @@ export async function createWallPost(input: {
   const cleanAuthor =
     sanitizeText(input.author_name, FIELD_LIMITS.AUTHOR_NAME) ||
     safeProfile.author_name ||
-    "Guest";
+    DEFAULT_USER_PROFILE.author_name;
   const nowIso = new Date().toISOString();
 
   const newPost: WallPost = {
@@ -750,45 +755,96 @@ export async function createWallPost(input: {
   return { post: newPost, source: "local" };
 }
 
+export function extractProfileFromPost(post: WallPost): UserProfile {
+  return sanitizeProfile({
+    author_name: post.author_name || DEFAULT_USER_PROFILE.author_name,
+    author_handle: post.author_handle ?? "",
+    author_avatar_url: post.author_avatar_url ?? "",
+    author_bio: post.author_bio ?? "",
+    author_location: post.author_location ?? "",
+    author_mood: post.author_mood ?? "",
+  });
+}
+
 /**
- * Updates the author's profile picture and profile info across their posts and local profile.
+ * Fetches the single shared user profile from the latest post in Supabase.
+ */
+export async function fetchWallProfile(): Promise<UserProfile> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return loadLocalProfile();
+  }
+
+  try {
+    const { data, error } = await client
+      .from("posts")
+      .select(
+        "author_name, author_handle, author_avatar_url, author_bio, author_location, author_mood"
+      )
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (!error && data && data.length > 0) {
+      const normalized = normalizePostRow(data[0] as Record<string, unknown>);
+      const extracted = extractProfileFromPost(normalized);
+      saveLocalProfile(extracted);
+      return extracted;
+    }
+  } catch {
+    // Fall back to local/default profile
+  }
+
+  return loadLocalProfile();
+}
+
+/**
+ * Updates the shared user's profile picture and info across all posts and local cache.
  */
 export async function syncAuthorProfileOnPosts(
-  previousAuthorNameRaw: string,
+  _previousAuthorNameRaw: string,
   updatedProfile: UserProfile
 ): Promise<{ error?: string }> {
-  const previousAuthorName = sanitizeText(
-    previousAuthorNameRaw,
-    FIELD_LIMITS.AUTHOR_NAME
-  );
   const cleanedProfile = sanitizeProfile(updatedProfile);
 
   saveLocalProfile(cleanedProfile);
 
   const local = loadLocalPosts();
-  const updatedLocal = local.map((p) => {
-    const matchByName =
-      (previousAuthorName &&
-        p.author_name.toLowerCase() === previousAuthorName.toLowerCase()) ||
-      p.author_name.toLowerCase() === cleanedProfile.author_name.toLowerCase();
-
-    if (matchByName) {
-      return {
-        ...p,
-        author_name: cleanedProfile.author_name,
-        author_handle: cleanedProfile.author_handle,
-        author_avatar_url: cleanedProfile.author_avatar_url,
-        author_bio: cleanedProfile.author_bio,
-        author_location: cleanedProfile.author_location,
-        author_mood: cleanedProfile.author_mood,
-      };
-    }
-    return p;
-  });
+  const updatedLocal = local.map((p) => ({
+    ...p,
+    author_name: cleanedProfile.author_name,
+    author_handle: cleanedProfile.author_handle,
+    author_avatar_url: cleanedProfile.author_avatar_url,
+    author_bio: cleanedProfile.author_bio,
+    author_location: cleanedProfile.author_location,
+    author_mood: cleanedProfile.author_mood,
+  }));
   saveLocalPosts(updatedLocal);
 
+  if (typeof window !== "undefined") {
+    try {
+      const metaMap = getExtraMetaMap();
+      for (const key of Object.keys(metaMap)) {
+        metaMap[key] = {
+          ...metaMap[key],
+          author_name: cleanedProfile.author_name,
+          author_handle: cleanedProfile.author_handle,
+          author_avatar_url: cleanedProfile.author_avatar_url,
+          author_bio: cleanedProfile.author_bio,
+          author_location: cleanedProfile.author_location,
+          author_mood: cleanedProfile.author_mood,
+        };
+      }
+      window.localStorage.setItem(
+        STORAGE_KEYS.EXTRA_META,
+        JSON.stringify(metaMap)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
   const client = getSupabaseClient();
-  if (client && previousAuthorName) {
+  if (client) {
     try {
       await client
         .from("posts")
@@ -800,7 +856,7 @@ export async function syncAuthorProfileOnPosts(
           author_location: cleanedProfile.author_location,
           author_mood: cleanedProfile.author_mood,
         })
-        .eq("author_name", previousAuthorName);
+        .neq("id", "00000000-0000-0000-0000-000000000000");
     } catch {
       // Ignore if optional columns are not present on remote table
     }

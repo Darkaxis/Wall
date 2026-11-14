@@ -12,10 +12,13 @@ import {
   createWallPost,
   DEFAULT_USER_PROFILE,
   deleteWallPost,
+  extractProfileFromPost,
   fetchWallPosts,
   getSupabaseClient,
   loadLocalProfile,
   normalizePostRow,
+  saveLocalProfile,
+  STORAGE_KEYS,
   type UserProfile,
   type WallPost,
 } from "@/lib/supabase";
@@ -62,6 +65,11 @@ export function WallApp() {
           });
           return result.posts;
         });
+        if (result.source === "supabase" && result.posts.length > 0) {
+          const syncedProfile = extractProfileFromPost(result.posts[0]);
+          setProfile(syncedProfile);
+          saveLocalProfile(syncedProfile);
+        }
         if (result.error) {
           setLastError(result.error);
         } else {
@@ -114,9 +122,9 @@ export function WallApp() {
     }
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === "wall_softclub_posts_v1") {
+      if (e.key === STORAGE_KEYS.POSTS) {
         void syncPosts(false);
-      } else if (e.key === "wall_softclub_profile_v1") {
+      } else if (e.key === STORAGE_KEYS.PROFILE) {
         setProfile(loadLocalProfile());
       }
     };
@@ -234,9 +242,7 @@ export function WallApp() {
     });
   };
 
-  const myPostCount = posts.filter(
-    (p) => p.author_name.toLowerCase() === profile.author_name.toLowerCase()
-  ).length;
+  const myPostCount = posts.length;
   const totalPhotoCount = posts.filter((p) => Boolean(p.photo_url)).length;
 
   return (

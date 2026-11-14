@@ -12,8 +12,8 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function Avatar({
   src,
-  alt = "Member avatar",
-  fallbackText = "WL",
+  alt = "Profile avatar",
+  fallbackText = "AB",
   className,
   children,
   ...props

@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DEFAULT_USER_PROFILE,
+  fetchWallProfile,
   loadLocalProfile,
   processAndUploadImage,
   syncAuthorProfileOnPosts,
@@ -44,10 +45,21 @@ export function EditProfileView() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
+    let active = true;
     const local = loadLocalProfile();
     setDraft(local);
     setPreviousName(local.author_name);
     setIsLoaded(true);
+
+    void fetchWallProfile().then((remote) => {
+      if (!active) return;
+      setDraft(remote);
+      setPreviousName(remote.author_name);
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleAvatarFileChange = async (
@@ -87,8 +99,8 @@ export function EditProfileView() {
 
     try {
       const cleaned: UserProfile = {
-        author_name: draft.author_name.trim() || "Guest",
-        author_handle: draft.author_handle.trim() || "@guest",
+        author_name: draft.author_name.trim() || DEFAULT_USER_PROFILE.author_name,
+        author_handle: draft.author_handle.trim(),
         author_avatar_url: draft.author_avatar_url,
         author_bio: draft.author_bio.trim(),
         author_location: draft.author_location.trim(),
@@ -99,6 +111,12 @@ export function EditProfileView() {
       if (res?.error) {
         setErrorMessage(res.error);
         return;
+      }
+
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const bc = new BroadcastChannel("wall_softclub_live_channel_v1");
+        bc.postMessage({ type: "PROFILE_SYNC" });
+        bc.close();
       }
 
       setPreviousName(cleaned.author_name);

@@ -5,7 +5,7 @@ create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid,
   body text check (char_length(body) <= 280),
-  author_name text default 'Guest',
+  author_name text default 'Aubie Bryne Hallazgo',
   message text check (char_length(message) <= 280),
   photo_url text,
   photo_caption text,
@@ -18,7 +18,7 @@ create table if not exists public.posts (
   created_at timestamptz default now()
 );
 
-alter table public.posts alter column author_name set default 'Guest';
+alter table public.posts alter column author_name set default 'Aubie Bryne Hallazgo';
 
 -- Index for reverse-chronological feed (newest first)
 create index if not exists idx_posts_created_at_desc on public.posts (created_at desc);

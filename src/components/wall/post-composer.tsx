@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar } from "@/components/ui/avatar";
 import {
+  DEFAULT_USER_PROFILE,
   MAX_POST_LENGTH,
   processAndUploadImage,
   validateImageFile,
@@ -106,7 +107,7 @@ export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
     setIsPublishing(true);
     try {
       const result = await onPublishPost({
-        author_name: profile.author_name || "Guest",
+        author_name: profile.author_name || DEFAULT_USER_PROFILE.author_name,
         message: message.trim().slice(0, MAX_POST_LENGTH),
         photo_url: photoUrl,
         photo_caption: photoCaption.trim() || null,
@@ -168,7 +169,7 @@ export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
               <Avatar
                 src={profile.author_avatar_url}
                 alt={profile.author_name}
-                fallbackText={profile.author_name || "WL"}
+                fallbackText={profile.author_name || DEFAULT_USER_PROFILE.author_name}
                 className="h-9 w-9 border-2 border-white"
               />
               <div className="min-w-0">
