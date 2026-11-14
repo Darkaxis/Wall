@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Y2K Gen-X Soft Club Palette (c. 1998-2003):
+       Alabaster mist, pale celadon, glacier cyan-blue, soft sage, warm transit amber */
+    --background: 168 22% 94%;
+    --foreground: 193 26% 14%;
+    --card: 168 30% 97%;
+    --card-foreground: 193 26% 14%;
+    --popover: 168 30% 97%;
+    --popover-foreground: 193 26% 14%;
+    --primary: 194 30% 46%;
+    --primary-foreground: 168 30% 98%;
+    --secondary: 165 25% 88%;
+    --secondary-foreground: 193 26% 18%;
+    --muted: 168 18% 89%;
+    --muted-foreground: 193 16% 38%;
+    --accent: 165 28% 86%;
+    --accent-foreground: 193 26% 15%;
+    --destructive: 8 72% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 185 22% 82%;
+    --input: 185 22% 82%;
+    --ring: 194 30% 46%;
+    --radius: 1rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-[#528899]/25 selection:text-[#1B2A2E];
+    background-color: #eaf2f0;
+    background-image:
+      radial-gradient(at 12% 10%, rgba(164, 212, 206, 0.55) 0px, transparent 48%),
+      radial-gradient(at 88% 14%, rgba(145, 192, 212, 0.5) 0px, transparent 52%),
+      radial-gradient(at 75% 85%, rgba(223, 109, 59, 0.12) 0px, transparent 48%),
+      radial-gradient(at 20% 82%, rgba(168, 209, 181, 0.45) 0px, transparent 50%),
+      radial-gradient(rgba(82, 136, 153, 0.16) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 24px 24px;
+    background-attachment: fixed;
+  }
+}
