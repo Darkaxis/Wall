@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+  .trim()
+  .replace(/^['"]|['"]$/g, "")
+  .trim();
 let supabaseConnectHosts = "https://*.supabase.co wss://*.supabase.co";
 
 if (supabaseUrl) {

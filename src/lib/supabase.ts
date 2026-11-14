@@ -223,28 +223,37 @@ async function inspectImageMagicType(
   return null;
 }
 
-function isSafeSupabaseUrl(url: string): boolean {
+function normalizeEnvValue(raw: string | undefined): string {
+  return (raw || "").trim().replace(/^['"]|['"]$/g, "").trim();
+}
+
+function normalizeSupabaseUrl(raw: string): string {
   try {
-    const parsed = new URL(url);
-    if (parsed.protocol === "https:") return true;
-    return (
+    const parsed = new URL(raw);
+    if (parsed.protocol === "https:") return parsed.origin;
+    if (
       parsed.protocol === "http:" &&
       (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1")
-    );
+    ) {
+      return parsed.origin;
+    }
+    return "";
   } catch {
-    return false;
+    return "";
   }
 }
 
-const envSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
-const envSupabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
+const rawEnvSupabaseUrl = normalizeEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const envSupabaseUrl = normalizeSupabaseUrl(rawEnvSupabaseUrl);
+const envSupabaseKey = normalizeEnvValue(
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 const hasValidEnvKeys =
   Boolean(envSupabaseUrl) &&
   Boolean(envSupabaseKey) &&
-  isSafeSupabaseUrl(envSupabaseUrl) &&
-  !envSupabaseUrl.includes("your-project-id") &&
-  !envSupabaseUrl.includes("your_project_url") &&
+  !rawEnvSupabaseUrl.includes("your-project-id") &&
+  !rawEnvSupabaseUrl.includes("your_project_url") &&
   !envSupabaseKey.includes("your-supabase-anon-key") &&
   !envSupabaseKey.includes("your_anon_key");
 
@@ -607,7 +616,11 @@ export async function fetchWallPosts(): Promise<{
 }> {
   const client = getSupabaseClient();
   if (!client) {
-    return { posts: loadLocalPosts(), source: "local" };
+    return {
+      posts: loadLocalPosts(),
+      source: "local",
+      error: "Database is not connected on this deployment.",
+    };
   }
 
   try {
@@ -752,7 +765,11 @@ export async function createWallPost(input: {
 
   const current = loadLocalPosts();
   saveLocalPosts([newPost, ...current]);
-  return { post: newPost, source: "local" };
+  return {
+    post: newPost,
+    source: "local",
+    error: "Database is not connected on this deployment. Saved on this device only.",
+  };
 }
 
 export function extractProfileFromPost(post: WallPost): UserProfile {
