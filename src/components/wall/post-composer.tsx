@@ -18,6 +18,7 @@ import { Avatar } from "@/components/ui/avatar";
 import {
   MAX_POST_LENGTH,
   processAndUploadImage,
+  validateImageFile,
   type UserProfile,
 } from "@/lib/supabase";
 
@@ -30,8 +31,6 @@ interface PostComposerProps {
     photo_caption?: string | null;
   }) => Promise<{ error?: string } | void>;
 }
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
   const [message, setMessage] = React.useState("");
@@ -52,12 +51,9 @@ export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
 
   const handlePhotoFile = async (file: File) => {
     setErrorMsg(null);
-    if (!file.type.startsWith("image/")) {
-      setErrorMsg("Please select an image file (PNG, JPG, GIF, or WebP).");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setErrorMsg("Image must be smaller than 10 MB.");
+    const fileError = validateImageFile(file);
+    if (fileError) {
+      setErrorMsg(fileError);
       return;
     }
 
@@ -65,8 +61,12 @@ export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
     try {
       const url = await processAndUploadImage(file, "posts");
       setPhotoUrl(url);
-    } catch {
-      setErrorMsg("Could not process the selected photo. Please try another.");
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : "Could not process the selected photo. Please try another."
+      );
     } finally {
       setIsUploadingPhoto(false);
       if (photoInputRef.current) {
@@ -226,20 +226,18 @@ export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
             required
           />
 
-          {/* Photo Attachment Preview & Filters */}
+          {/* Photo Attachment Preview */}
           {photoUrl && (
             <div className="space-y-2.5 rounded-2xl border border-white/90 bg-white/70 p-3 backdrop-blur-md animate-fade-in">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-[#2A4A53]">
-                  <Wand2 className="h-3.5 w-3.5 text-[#528899]" />
-                  <span>Photo filter</span>
-                </div>
+                <span className="text-xs font-medium text-[#2A4A53]">
+                  Photo preview
+                </span>
                 <button
                   type="button"
                   onClick={() => {
                     setPhotoUrl(null);
                     setPhotoCaption("");
-                    setPhotoFilter("none");
                   }}
                   className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
                 >
@@ -253,26 +251,8 @@ export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
                 <img
                   src={photoUrl}
                   alt="Uploaded post preview"
-                  className={`max-h-60 w-full object-cover transition-all duration-300 ${activeFilterObj.cssClass}`}
+                  className="max-h-60 w-full object-cover transition-all duration-300"
                 />
-              </div>
-
-              {/* Filter Selector Pills */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {PHOTO_FILTERS.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setPhotoFilter(f.id)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
-                      photoFilter === f.id
-                        ? "border-[#528899] bg-[#528899] text-white shadow-sm"
-                        : "border-white/80 bg-white/60 text-[#2A4A53] hover:bg-white"
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
               </div>
 
               <Input
@@ -291,7 +271,7 @@ export function PostComposer({ profile, onPublishPost }: PostComposerProps) {
               <input
                 ref={photoInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 onChange={handleFileChange}
                 className="hidden"
                 aria-label="Upload photo for post"

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { sanitizeMediaUrl } from "@/lib/supabase";
 
 export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   src?: string | null;
@@ -18,10 +19,11 @@ export function Avatar({
   ...props
 }: AvatarProps) {
   const [imgFailed, setImgFailed] = React.useState(false);
+  const safeSrc = sanitizeMediaUrl(src);
 
   React.useEffect(() => {
     setImgFailed(false);
-  }, [src]);
+  }, [safeSrc]);
 
   if (children) {
     return (
@@ -45,10 +47,10 @@ export function Avatar({
       )}
       {...props}
     >
-      {src && !imgFailed ? (
+      {safeSrc && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={src}
+          src={safeSrc}
           alt={alt}
           onError={() => setImgFailed(true)}
           className="h-full w-full object-cover"
@@ -69,11 +71,12 @@ export function AvatarImage({
   alt?: string;
   className?: string;
 }) {
-  if (!src) return null;
+  const safeSrc = sanitizeMediaUrl(src);
+  if (!safeSrc) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src={safeSrc}
       alt={alt}
       className={cn("aspect-square h-full w-full object-cover", className)}
     />

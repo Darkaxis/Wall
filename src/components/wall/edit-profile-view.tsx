@@ -26,6 +26,7 @@ import {
   loadLocalProfile,
   processAndUploadImage,
   syncAuthorProfileOnPosts,
+  validateImageFile,
   type UserProfile,
 } from "@/lib/supabase";
 
@@ -55,12 +56,9 @@ export function EditProfileView() {
     const file = e.target.files?.[0];
     if (!file) return;
     setErrorMessage(null);
-    if (!file.type.startsWith("image/")) {
-      setErrorMessage("Please select an image file (PNG, JPG, GIF, or WebP).");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage("Profile photo must be smaller than 10 MB.");
+    const fileError = validateImageFile(file);
+    if (fileError) {
+      setErrorMessage(fileError);
       return;
     }
 
@@ -68,8 +66,10 @@ export function EditProfileView() {
     try {
       const uploadedUrl = await processAndUploadImage(file, "avatars");
       setDraft((prev) => ({ ...prev, author_avatar_url: uploadedUrl }));
-    } catch {
-      setErrorMessage("Could not upload the selected image.");
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Could not upload the selected image."
+      );
     } finally {
       setIsUploadingAvatar(false);
       if (fileInputRef.current) {
@@ -224,7 +224,7 @@ export function EditProfileView() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       onChange={handleAvatarFileChange}
                       className="hidden"
                       aria-label="Upload profile picture"

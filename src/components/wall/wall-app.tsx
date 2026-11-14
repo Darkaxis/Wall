@@ -8,7 +8,6 @@ import { Card } from "@/components/ui/card";
 import { ProfileCard } from "@/components/wall/profile-card";
 import { PostComposer } from "@/components/wall/post-composer";
 import { LiveFeed } from "@/components/wall/live-feed";
-import type { PhotoFilterId } from "@/lib/softclub-art";
 import {
   createWallPost,
   DEFAULT_USER_PROFILE,
@@ -89,8 +88,15 @@ export function WallApp() {
       const bc = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
       broadcastRef.current = bc;
       bc.onmessage = (event) => {
-        if (event.data?.type === "NEW_POST" && event.data?.post) {
-          const incoming = event.data.post as WallPost;
+        if (
+          event.data?.type === "NEW_POST" &&
+          event.data?.post &&
+          typeof event.data.post === "object"
+        ) {
+          const incoming = normalizePostRow(
+            event.data.post as Record<string, unknown>
+          );
+          if (!incoming.body && !incoming.message) return;
           setPosts((prev) => {
             if (prev.some((p) => p.id === incoming.id)) return prev;
             return [incoming, ...prev];
@@ -186,14 +192,12 @@ export function WallApp() {
     message: string;
     photo_url?: string | null;
     photo_caption?: string | null;
-    photo_filter?: PhotoFilterId;
   }) => {
     const res = await createWallPost({
       author_name: payload.author_name,
       message: payload.message,
       photo_url: payload.photo_url,
       photo_caption: payload.photo_caption,
-      photo_filter: payload.photo_filter,
       profile: {
         ...profile,
         author_name: payload.author_name,

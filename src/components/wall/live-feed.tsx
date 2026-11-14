@@ -17,8 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { ModalDialog } from "@/components/ui/dialog";
-import { PHOTO_FILTERS } from "@/lib/softclub-art";
-import type { WallPost } from "@/lib/supabase";
+import { sanitizeMediaUrl, type WallPost } from "@/lib/supabase";
 
 interface LiveFeedProps {
   posts: WallPost[];
@@ -191,9 +190,7 @@ export function LiveFeed({
         <div className="space-y-3.5">
           {filteredPosts.map((post) => {
             const isNewlyArrived = newlyArrivedIds.has(post.id);
-            const filterClass =
-              PHOTO_FILTERS.find((f) => f.id === post.photo_filter)?.cssClass ||
-              "";
+            const safePhotoUrl = sanitizeMediaUrl(post.photo_url);
 
             return (
               <Card
@@ -267,7 +264,7 @@ export function LiveFeed({
                       </p>
 
                       {/* Optional Uploaded Photo */}
-                      {post.photo_url && (
+                      {safePhotoUrl && (
                         <div className="pt-1">
                           <div
                             onClick={() => setLightboxPost(post)}
@@ -275,12 +272,12 @@ export function LiveFeed({
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={post.photo_url}
+                              src={safePhotoUrl}
                               alt={
                                 post.photo_caption ||
                                 `Photo shared by ${post.author_name}`
                               }
-                              className={`max-h-80 w-full object-cover transition-transform duration-500 group-hover/photo:scale-[1.015] ${filterClass}`}
+                              className="max-h-80 w-full object-cover transition-transform duration-500 group-hover/photo:scale-[1.015]"
                             />
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#1B2A2E]/35 via-transparent to-transparent opacity-70" />
                             <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white">
@@ -328,18 +325,18 @@ export function LiveFeed({
         }
         className="max-w-2xl"
       >
-        {lightboxPost?.photo_url && (
+        {sanitizeMediaUrl(lightboxPost?.photo_url) && (
           <div className="space-y-3">
             <div className="overflow-hidden rounded-2xl border border-white bg-[#1B2A2E]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={lightboxPost.photo_url}
-                alt={lightboxPost.photo_caption || "Post photo"}
+                src={sanitizeMediaUrl(lightboxPost?.photo_url) || ""}
+                alt={lightboxPost?.photo_caption || "Post photo"}
                 className="max-h-[65vh] w-full object-contain"
               />
             </div>
             <p className="text-sm text-[#1B2A2E]">
-              {lightboxPost.body || lightboxPost.message}
+              {lightboxPost?.body || lightboxPost?.message}
             </p>
           </div>
         )}
